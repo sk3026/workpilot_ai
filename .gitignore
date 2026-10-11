@@ -1,0 +1,25 @@
+# Secrets & Env
+.env
+backend/.env
+
+# Python Virtual Environments
+venv/
+backend/venv/
+.venv/
+__pycache__/
+*.py[cod]
+
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Database & Generated PDFs
+*.db
+data/workpilot.db
+data/mock_inbox/*.pdf
+!data/mock_inbox/.gitkeep
+
+# OS / IDE
+.DS_Store
+.vscode/
