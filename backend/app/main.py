@@ -19,6 +19,6 @@ def on_startup():
 
 app.include_router(router)
 
-@app.get("/")
-def read_root():
-    return {"status": "online", "app": "WorkPilot Autonomous Enterprise Task Worker"}
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}

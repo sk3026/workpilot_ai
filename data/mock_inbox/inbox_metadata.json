@@ -1,0 +1,92 @@
+[
+  {
+    "message_id": "msg_001",
+    "sender": "billing@abccorp.com",
+    "subject": "Invoice INV-2026-001 from ABC Corp",
+    "received_date": "2026-10-09T10:00:00Z",
+    "attachment_name": "invoice_abc_corp_001.pdf",
+    "file_path": "C:\\Users\\kumar\\OneDrive\\Desktop\\workpilot\\data\\mock_inbox\\invoice_abc_corp_001.pdf",
+    "scenario_note": "Standard processing"
+  },
+  {
+    "message_id": "msg_002",
+    "sender": "billing@abccorp.com",
+    "subject": "FW: Invoice INV-2026-001 from ABC Corp (Resent)",
+    "received_date": "2026-10-09T14:30:00Z",
+    "attachment_name": "invoice_abc_corp_001.pdf",
+    "file_path": "C:\\Users\\kumar\\OneDrive\\Desktop\\workpilot\\data\\mock_inbox\\invoice_abc_corp_001.pdf",
+    "scenario_note": "Exact duplicate entry test"
+  },
+  {
+    "message_id": "msg_003",
+    "sender": "accounts@acmesupplies.com",
+    "subject": "Invoice INV-2026-002 from Acme Supplies",
+    "received_date": "2026-10-10T08:15:00Z",
+    "attachment_name": "invoice_acme_002.pdf",
+    "file_path": "C:\\Users\\kumar\\OneDrive\\Desktop\\workpilot\\data\\mock_inbox\\invoice_acme_002.pdf",
+    "scenario_note": "High-value invoice (> $10,000 safety limit)"
+  },
+  {
+    "message_id": "msg_004",
+    "sender": "invoices@apexcloud.io",
+    "subject": "Cloud Infrastructure Billing - Apex Cloud",
+    "received_date": "2026-10-10T09:00:00Z",
+    "attachment_name": "invoice_apex_cloud_003.pdf",
+    "file_path": "C:\\Users\\kumar\\OneDrive\\Desktop\\workpilot\\data\\mock_inbox\\invoice_apex_cloud_003.pdf",
+    "scenario_note": "Standard cloud utility invoice"
+  },
+  {
+    "message_id": "msg_005",
+    "sender": "finance@globaltech.com",
+    "subject": "Global Tech Services Invoice INV-2026-004",
+    "received_date": "2026-10-10T11:45:00Z",
+    "attachment_name": "invoice_globaltech_004.pdf",
+    "file_path": "C:\\Users\\kumar\\OneDrive\\Desktop\\workpilot\\data\\mock_inbox\\invoice_globaltech_004.pdf",
+    "scenario_note": "Missing explicit due date edge case"
+  },
+  {
+    "message_id": "msg_006",
+    "sender": "billing@starlightlogistics.com",
+    "subject": "Freight Payment Invoice INV-2026-005",
+    "received_date": "2026-10-10T13:20:00Z",
+    "attachment_name": "invoice_starlight_005.pdf",
+    "file_path": "C:\\Users\\kumar\\OneDrive\\Desktop\\workpilot\\data\\mock_inbox\\invoice_starlight_005.pdf",
+    "scenario_note": "High-value logistics invoice requiring approval"
+  },
+  {
+    "message_id": "msg_007",
+    "sender": "ar@nexusdynamics.net",
+    "subject": "Nexus Dynamics Invoice INV-2026-006",
+    "received_date": "2026-10-10T14:10:00Z",
+    "attachment_name": "invoice_nexus_006.pdf",
+    "file_path": "C:\\Users\\kumar\\OneDrive\\Desktop\\workpilot\\data\\mock_inbox\\invoice_nexus_006.pdf",
+    "scenario_note": "Standard software milestone invoice"
+  },
+  {
+    "message_id": "msg_008",
+    "sender": "support@quantumanalytics.ai",
+    "subject": "Quantum Analytics Subscription INV-2026-007",
+    "received_date": "2026-10-10T15:00:00Z",
+    "attachment_name": "invoice_quantum_007.pdf",
+    "file_path": "C:\\Users\\kumar\\OneDrive\\Desktop\\workpilot\\data\\mock_inbox\\invoice_quantum_007.pdf",
+    "scenario_note": "Subscription invoice near approval limit"
+  },
+  {
+    "message_id": "msg_009",
+    "sender": "billing@cybershield.io",
+    "subject": "CyberShield Security Audit Invoice INV-2026-008",
+    "received_date": "2026-10-10T16:30:00Z",
+    "attachment_name": "invoice_cybershield_008.pdf",
+    "file_path": "C:\\Users\\kumar\\OneDrive\\Desktop\\workpilot\\data\\mock_inbox\\invoice_cybershield_008.pdf",
+    "scenario_note": "Standard security audit invoice"
+  },
+  {
+    "message_id": "msg_010",
+    "sender": "accounts@vortexmedia.com",
+    "subject": "Vortex Media Ad Campaign Invoice INV-2026-009",
+    "received_date": "2026-10-10T17:00:00Z",
+    "attachment_name": "invoice_vortex_009.pdf",
+    "file_path": "C:\\Users\\kumar\\OneDrive\\Desktop\\workpilot\\data\\mock_inbox\\invoice_vortex_009.pdf",
+    "scenario_note": "Standard media campaign invoice"
+  }
+]
