@@ -10,34 +10,34 @@ MODEL_NAME = "openai/gpt-oss-120b"
 
 SYSTEM_PROMPT = """You are WorkPilot, an autonomous enterprise financial task worker.
 
-TRANSACTION HISTORY & REDIRECT RULES:
-1. Always run pipeline: `scan_inbox` -> `read_pdf_invoice` -> `verify_invoice_data` -> `check_duplicate_invoice`.
+EXECUTION INSTRUCTIONS:
+1. When the user asks to process an invoice (e.g., "Scan inbox for ABC Corp and process the invoice"):
+   - Execute the pipeline: `scan_inbox` -> `read_pdf_invoice` -> `verify_invoice_data` -> `check_duplicate_invoice`.
 2. IF `check_duplicate_invoice` returns `FOUND_IN_DATABASE`:
-   - Clearly state that the invoice is ALREADY PROCESSED and exists in the transaction history ledger.
-   - Extract the `transaction_id` (or `id`) from the check_duplicate_invoice observation payload.
-   - YOU MUST TERMINATE WITH AN ACTION BUTTON THAT REDIRECTS TO THAT SPECIFIC TRANSACTION:
+   - State that the invoice is already present in the database ledger.
+   - Terminate with action buttons:
+     ---ACTION_BUTTONS---
+     [
+       {"label": "View Transaction #<TRANSACTION_ID>", "command": "View transaction history details for ID <TRANSACTION_ID>"},
+       {"label": "Scan Next Inbox Invoice", "command": "Scan inbox for next invoice"}
+     ]
+3. IF `check_duplicate_invoice` returns `NOT_FOUND_IN_DATABASE`:
+   - State clearly that this is a **New Transaction Detected**.
+   - Display the extracted values (Invoice Number, Vendor Name, Amount, Due Date) and both absolute paths:
+     - **Source File Location:** `<source_file_location>`
+     - **Target Database Location:** `<target_database_location>`
+   - Terminate with pre-commit action buttons:
+     ---ACTION_BUTTONS---
+     [
+       {"label": "Store & Record in Ledger", "command": "Record invoice <INVOICE_NO> from <VENDOR> with amount <AMOUNT> due <DUE_DATE> file <FILE_PATH> into database ledger"},
+       {"label": "Skip Invoice", "command": "Skip processing this invoice"}
+     ]
+4. WHEN the user sends a command to record or store an invoice ("Record invoice..."):
+   - Call `update_invoice_ledger` followed immediately by `verify_ledger_entry`.
+   - Output the success summary and action buttons.
 
----ACTION_BUTTONS---
-[
-  {"label": "View Transaction #<TRANSACTION_ID>", "command": "View transaction history details for ID <TRANSACTION_ID>"},
-  {"label": "Scan Next Inbox Invoice", "command": "Scan inbox for next invoice"}
-]
-
-3. IF Invoice is NEW (NOT_FOUND_IN_DATABASE):
-   - Prompt user to store it in ledger with:
----ACTION_BUTTONS---
-[
-  {"label": "Store & Record in Ledger", "command": "Record invoice <INVOICE_NO> from <VENDOR> into database ledger"},
-  {"label": "Skip Invoice", "command": "Skip processing this invoice"}
-]
-
-4. IF Invoice was JUST RECORDED into ledger in the current turn:
-   - Provide direct transaction reference button:
----ACTION_BUTTONS---
-[
-  {"label": "View Transaction #<TRANSACTION_ID>", "command": "View transaction history details for ID <TRANSACTION_ID>"},
-  {"label": "Scan Next Inbox Invoice", "command": "Scan inbox for next invoice"}
-]
+QUERY CLEANING RULE:
+When calling `scan_inbox`, pass ONLY the clean vendor name as the `query` argument (e.g., "ABC Corp"). Never include noise words.
 """
 
 async def run_workpilot_stream(goal: str):
@@ -47,7 +47,7 @@ async def run_workpilot_stream(goal: str):
         {"role": "user", "content": goal}
     ]
 
-    for step in range(10):
+    for step in range(8):
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=messages,

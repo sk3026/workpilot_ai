@@ -14,13 +14,19 @@ def scan_inbox(query: str):
     with open(manifest_path, "r") as f:
         emails = json.load(f)
     
-    matched = [
-        e for e in emails 
-        if query.lower() in e.get("sender", "").lower() 
-        or query.lower() in e.get("subject", "").lower()
-        or query.lower() in e.get("body", "").lower()
-    ]
+    # Strip conversational stop words to isolate clean vendor search terms
+    stop_words = {"invoice", "invoices", "scan", "inbox", "for", "process", "the", "and", "check", "email", "emails"}
+    tokens = [w for w in re.findall(r"\w+", query.lower()) if w not in stop_words]
+    clean_query = " ".join(tokens) if tokens else query.lower().strip()
     
+    matched = []
+    for e in emails:
+        searchable_text = f"{e.get('sender', '')} {e.get('subject', '')} {e.get('body', '')}".lower()
+        if clean_query and clean_query in searchable_text:
+            matched.append(e)
+        elif tokens and any(t in searchable_text for t in tokens):
+            matched.append(e)
+
     if not matched:
         return {"status": "NOT_FOUND", "message": f"No emails matched query '{query}'"}
     
@@ -43,7 +49,7 @@ def scan_inbox(query: str):
                 break
 
     if not attachment_name and os.path.exists(settings.INBOX_DIR):
-        clean_q = query.lower().split()[0]
+        clean_q = tokens[0] if tokens else query.lower().split()[0]
         for fname in os.listdir(settings.INBOX_DIR):
             if fname.lower().endswith(".pdf") and clean_q in fname.lower():
                 attachment_name = fname
@@ -77,7 +83,7 @@ def read_pdf_invoice(file_path: str):
     for page in doc:
         text += page.get_text()
 
-    # Pattern extraction anchored on word boundaries
+    # Pattern extraction anchored on strict word boundaries
     inv_match = re.search(
         r"(?:\bInvoice\s*Number\b|\bInvoice\s*#|\bINV\b|\bInvoice\b)[\s:]*([A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*)", 
         text, 
@@ -109,7 +115,7 @@ def read_pdf_invoice(file_path: str):
         except ValueError:
             amount = 0.0
 
-    # Currency format fallback ($X,XXX.XX) if primary regex matches zero or nothing
+    # Currency format scanner fallback ($X,XXX.XX) if primary regex returns 0.0
     if amount == 0.0:
         dollar_matches = re.findall(r"\$\s*([0-9,]+(?:\.[0-9]{2})?)", text)
         if dollar_matches:
@@ -136,10 +142,11 @@ def read_pdf_invoice(file_path: str):
     source_path = os.path.abspath(file_path)
     db_path = os.path.abspath(settings.DATABASE_URL.replace("sqlite:///", ""))
 
-    if amount > settings.APPROVAL_THRESHOLD_AMOUNT:
+    # Threshold Check (>= $10,000 safety gate requiring human approval)
+    if amount >= settings.APPROVAL_THRESHOLD_AMOUNT:
         return {
             "status": "AWAITING_HUMAN_APPROVAL",
-            "warning": f"Invoice amount (${amount:,.2f}) exceeds safety threshold (${settings.APPROVAL_THRESHOLD_AMOUNT:,.2f}).",
+            "warning": f"Invoice amount (${amount:,.2f}) meets or exceeds safety threshold (${settings.APPROVAL_THRESHOLD_AMOUNT:,.2f}).",
             "pending_payload": {
                 "invoice_number": invoice_number,
                 "vendor_name": vendor_name,
