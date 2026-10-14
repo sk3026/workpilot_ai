@@ -83,7 +83,6 @@ def read_pdf_invoice(file_path: str):
     for page in doc:
         text += page.get_text()
 
-    # Pattern extraction anchored on strict word boundaries
     inv_match = re.search(
         r"(?:\bInvoice\s*Number\b|\bInvoice\s*#|\bINV\b|\bInvoice\b)[\s:]*([A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*)", 
         text, 
@@ -115,7 +114,6 @@ def read_pdf_invoice(file_path: str):
         except ValueError:
             amount = 0.0
 
-    # Currency format scanner fallback ($X,XXX.XX) if primary regex returns 0.0
     if amount == 0.0:
         dollar_matches = re.findall(r"\$\s*([0-9,]+(?:\.[0-9]{2})?)", text)
         if dollar_matches:
@@ -128,7 +126,6 @@ def read_pdf_invoice(file_path: str):
                 except ValueError:
                     continue
 
-    # Line-by-line fallback
     lines = [line.strip() for line in text.split("\n") if line.strip()]
     for line in lines:
         line_lower = line.lower()
@@ -172,31 +169,43 @@ def read_pdf_invoice(file_path: str):
 
 def verify_invoice_data(invoice_number: str, vendor_name: str, amount: float, due_date: str, sender_email: str = ""):
     checks = []
+    missing_fields = []
     is_valid = True
 
     if not invoice_number or invoice_number.upper() in ["UNKNOWN", "OICE", "VOICE"] or len(invoice_number) < 3:
-        checks.append({"check": "invoice_number_format", "passed": False, "detail": f"Invalid format '{invoice_number}'"})
+        checks.append({"check": "invoice_number_format", "passed": False, "detail": f"Invalid or missing invoice number '{invoice_number}'"})
+        missing_fields.append("invoice_number")
         is_valid = False
     else:
         checks.append({"check": "invoice_number_format", "passed": True, "detail": f"Valid format '{invoice_number}'"})
 
     if amount <= 0.0:
         checks.append({"check": "amount_validity", "passed": False, "detail": f"Amount is zero or negative (${amount})"})
+        missing_fields.append("amount")
         is_valid = False
     else:
         checks.append({"check": "amount_validity", "passed": True, "detail": f"Valid amount (${amount:,.2f})"})
 
-    if not vendor_name or vendor_name.upper() == "UNKNOWN":
+    if not vendor_name or vendor_name.upper() in ["UNKNOWN", "UNKNOWN VENDOR"]:
         checks.append({"check": "vendor_identity", "passed": False, "detail": "Vendor identity missing"})
+        missing_fields.append("vendor_name")
         is_valid = False
     else:
         checks.append({"check": "vendor_identity", "passed": True, "detail": f"Vendor identified as '{vendor_name}'"})
 
+    if not due_date or due_date.upper() == "UNKNOWN":
+        checks.append({"check": "due_date_validity", "passed": False, "detail": "Due date missing"})
+        missing_fields.append("due_date")
+        is_valid = False
+    else:
+        checks.append({"check": "due_date_validity", "passed": True, "detail": f"Due date identified as '{due_date}'"})
+
     return {
         "status": "VERIFICATION_PASSED" if is_valid else "VERIFICATION_FAILED",
         "verification_passed": is_valid,
+        "missing_fields": missing_fields,
         "verification_checks": checks,
-        "confidence_score": 1.0 if is_valid else 0.5
+        "confidence_score": 1.0 if is_valid else max(0.0, 1.0 - (len(missing_fields) * 0.25))
     }
 
 
@@ -233,10 +242,18 @@ def check_duplicate_invoice(invoice_number: str):
 
 
 def update_invoice_ledger(invoice_number: str, vendor_name: str, amount: float, due_date: str, file_location: str):
-    if not invoice_number or invoice_number.upper() in ["UNKNOWN", "OICE", "VOICE"] or re.match(r"^[-_]+$", invoice_number):
+    invalid_inv = not invoice_number or invoice_number.upper() in ["UNKNOWN", "OICE", "VOICE"] or re.match(r"^[-_]+$", invoice_number)
+    invalid_vendor = not vendor_name or vendor_name.upper() in ["UNKNOWN", "UNKNOWN VENDOR"]
+    
+    if invalid_inv or invalid_vendor or amount <= 0.0:
         return {
             "status": "ERROR",
-            "message": f"Cannot record invoice: Invalid invoice number '{invoice_number}'."
+            "message": "Cannot record invoice: Invalid or missing critical fields.",
+            "details": {
+                "invalid_invoice_number": invalid_inv,
+                "invalid_vendor": invalid_vendor,
+                "invalid_amount": amount <= 0.0
+            }
         }
 
     db_path = settings.DATABASE_URL.replace("sqlite:///", "")

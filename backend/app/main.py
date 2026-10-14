@@ -1,9 +1,9 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import init_db
-from app.api import router
+from app.api import router as api_router
 
-app = FastAPI(title="WorkPilot API", version="1.0.0")
+app = FastAPI(title="WorkPilot API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -13,12 +13,5 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.on_event("startup")
-def on_startup():
-    init_db()
-
-app.include_router(router)
-
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
+# Explicitly mount under /api/v1
+app.include_router(api_router, prefix="/api/v1")
