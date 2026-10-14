@@ -1,100 +1,121 @@
 # WorkPilot: Autonomous Enterprise Financial Task Worker
 
-WorkPilot is an enterprise-grade, autonomous financial task worker designed to automate the extraction, multi-tier verification, approval routing, and ledger recording of vendor PDF invoices.
+WorkPilot is an enterprise-grade autonomous financial task worker designed to automate the extraction, multi-tier verification, approval routing, and ledger recording of vendor PDF invoices.
 
-Built with **FastAPI**, **React (Vite)**, **Groq Llama-3.1 Models**, **PyMuPDF**, and **SQLite**, WorkPilot implements a ReAct (Reasoning + Acting) agent loop with human-in-the-loop (HITL) safety thresholds for high-value transactions ($\ge \$10,000$).
+Built with **FastAPI, React (Vite), Groq, PyMuPDF, and SQLite**, WorkPilot implements a ReAct (Reasoning + Acting) agent loop with human-in-the-loop (HITL) safety thresholds for high-value transactions (≥ $10,000).
 
 ---
 
 ## 🏗️ System Architecture
 
-WorkPilot operates as a single-port or decoupled full-stack workspace. The system architecture consists of four distinct layers:
+WorkPilot operates as a single-service or decoupled full-stack workspace. The system architecture consists of four distinct layers:
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       React Frontend Workbench                              │
-│  - Live EventSource SSE Listener                                            │
-│  - Interactive Thought-Chain Accordions                                     │
-│  - Pre-Commit Decision Tree Action Pills                                    │
-│  - Real-Time Transaction Sidebar & Redirect Feed                            │
-└───────────────────────────────────┬─────────────────────────────────────────┘
-                                    │
-                          HTTP / SSE Stream (Port 8000)
-                                    │
-┌───────────────────────────────────▼─────────────────────────────────────────┐
-│                        FastAPI Application Gateway                          │
-│  - GET  /api/v1/run-stream?prompt=...  (EventSource SSE Stream)             │
-│  - GET  /api/v1/transactions           (Sidebar Ledger Queries)            │
-│  - GET  /api/v1/transactions/{id}      (Transaction Redirection View)       │
-│  - POST /api/v1/approve                (Human Safety Gate Decision Endpoint)│
-└───────────────────────────────────┬─────────────────────────────────────────┘
-                                    │
-┌───────────────────────────────────▼─────────────────────────────────────────┐
-│                      ReAct Agent Execution Engine                           │
-│  - Groq LLM (llama-3.1-8b-instant / llama-3.3-70b-versatile)               │
-│  - Multi-Step Tool Dispatcher & Backslash Path Sanitizers                   │
-│  - Agentic State Loop (Max 8 Iteration Guard)                               │
-└──────────────┬────────────────────┬───────────────────┬─────────────────────┘
-               │                    │                   │
-               ▼                    ▼                   ▼
-┌──────────────────────┐  ┌──────────────────┐  ┌─────────────────────────────┐
-│    Inbox Scanner     │  │  PyMuPDF Parser  │  │ SQLite Database Ledger      │
-│ (Vendor Query Filter)│  │ (Regex Extraction│  │ (data/workpilot.db)         │
-│                      │  │  & Validation)   │  │                             │
-└──────────────────────┘  └──────────────────┘  └─────────────────────────────┘
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                  React Frontend Workbench                   │
+│  - Live EventSource SSE Listener                             │
+│  - Interactive Agent Event Display                          │
+│  - Pre-Commit Decision Tree Action Buttons                  │
+│  - Real-Time Transaction Sidebar and Redirect Feed          │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                      HTTP / SSE (Port 8000)
+                               │
+┌──────────────────────────────▼──────────────────────────────┐
+│                 FastAPI Application Gateway                  │
+│  - GET  /api/v1/run-stream                                   │
+│  - GET  /api/v1/transactions                                  │
+│  - GET  /api/v1/transactions/{id}                             │
+│  - POST /api/v1/approve                                      │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────┐
+│                  ReAct Agent Execution Engine                │
+│  - Groq LLM Integration                                      │
+│  - Multi-Step Tool Dispatcher                                │
+│  - Windows Path Sanitization                                 │
+│  - Agent Execution Loop with Iteration Limit                 │
+└──────────────┬────────────────┬────────────────┬────────────┘
+               │                │                │
+               ▼                ▼                ▼
+       ┌──────────────┐ ┌──────────────┐ ┌────────────────────┐
+       │ Inbox Scanner│ │ PyMuPDF      │ │ SQLite Database    │
+       │              │ │ Invoice Parser│ │ Ledger             │
+       └──────────────┘ └──────────────┘ └────────────────────┘
 ```
 
 ---
 
 ## 🧠 Multi-Tier Verification & Execution Flow
 
-When a user submits a prompt (e.g., *"Scan inbox for ABC Corp and process the invoice"*), WorkPilot executes the following multi-tier verification pipeline:
+When a user submits a prompt, such as "Scan inbox for ABC Corp and process the invoice", WorkPilot executes the following pipeline:
 
-```
-[User Request]
-       │
-       ▼
-1. scan_inbox(vendor_name) ──► Extracts clean vendor attachment (.pdf)
-       │
-       ▼
-2. read_pdf_invoice(file_path) ──► Parses Invoice No, Amount, Due Date, Vendor
-       │
-       ├──► [Amount >= $10,000?] ──► YES ──► Emit APPROVAL_REQUIRED Event
-       │                                     (Halt for Human Approval Gate)
-       ▼ NO
+```text
+User Request
+     |
+     v
+1. scan_inbox(vendor_name)
+     |
+     v
+2. read_pdf_invoice(file_path)
+     |
+     +---- Amount >= $10,000? ---- YES ----> Human Approval Required
+     |                                         Halt for approval
+     |
+     NO
+     |
+     v
 3. verify_invoice_data(...)
-       │
-       ├──► [Missing/Invalid Fields?] ──► YES ──► Output Verification Warning
-       │                                           (Provide Missing Details / Skip)
-       ▼ NO (All Fields Valid)
+     |
+     +---- Missing or invalid fields? ---- YES ----> Verification Warning
+     |                                                Provide Missing Details / Skip
+     |
+     NO
+     |
+     v
 4. check_duplicate_invoice(...)
-       │
-       ├──► [Found in DB?] ──► YES ──► Output Duplicate Record Warning
-       │                               (Provide View Transaction #ID Pill)
-       ▼ NO (New Transaction)
-5. Emit Pre-Commit State ──► Displays Parsed Record & Source File Paths
-       │                      Provide ["Store & Record in Ledger", "Skip Invoice"]
-       ▼
-6. update_invoice_ledger(...) ──► Persists Row to SQLite DB (status: 'VERIFIED')
-       │
-       ▼
-7. verify_ledger_entry(...) ──► Confirms Row Creation & Returns Transaction ID
+     |
+     +---- Invoice exists? ---- YES ----> Duplicate Record Warning
+     |                                     View Transaction / Scan Next
+     |
+     NO
+     |
+     v
+5. Emit Pre-Commit State
+     |
+     v
+6. User chooses Store & Record in Ledger
+     |
+     v
+7. update_invoice_ledger(...)
+     |
+     v
+8. verify_ledger_entry(...)
+     |
+     v
+Confirm successful ledger persistence
 ```
+
+### Safety and Verification Rules
+
+- Required invoice fields must be present and valid before recording.
+- Duplicate invoices must be detected before creating a new ledger entry.
+- Invoices of $10,000 or more require human approval.
+- A new transaction is presented for confirmation before ledger recording.
+- Ledger persistence is verified after recording.
 
 ---
 
 ## 📋 Required Fields & Validation Standards
 
-Every processed invoice must satisfy strict data completeness standards before being committed to the ledger:
-
-| Field Name | Expected Format / Type | Verification Rule |
-| :--- | :--- | :--- |
-| **Invoice Number** | `String` (e.g., `INV-2026-001`) | Must be non-empty, non-`UNKNOWN`, and strictly match regex anchors. |
-| **Vendor Name** | `String` (e.g., `ABC Corp`) | Must be non-empty and match vendor entity metadata. |
-| **Amount** | `Float` (e.g., `1250.00`) | Must be a positive numerical value. If $\ge \$10,000$, halts for human safety approval. |
-| **Due Date** | `ISO Date String` (`YYYY-MM-DD`) | Must be a valid date string. |
-| **Source File Location** | `Absolute System Path` | Path backslashes (`\`) are auto-sanitized to avoid JSON escaping crashes. |
-| **Target Database** | `File System Path` | `data/workpilot.db` (SQLite engine). |
+| Field | Expected Format | Verification Rule |
+|---|---|---|
+| Invoice Number | String, e.g. `INV-2026-001` | Must be non-empty and not `UNKNOWN`. |
+| Vendor Name | String, e.g. `ABC Corp` | Must be present and match the vendor information. |
+| Amount | Positive numeric value | Must be valid; amounts ≥ $10,000 require human approval. |
+| Due Date | ISO date, `YYYY-MM-DD` | Must be a valid date. |
+| Source File Location | Absolute system path | Must identify the invoice source file. |
+| Target Database | File path | SQLite database location, configured by the application. |
 
 ---
 
@@ -105,35 +126,34 @@ workpilot/
 ├── backend/
 │   ├── app/
 │   │   ├── __init__.py
-│   │   ├── api.py           # FastAPI REST & SSE Route Definitions
-│   │   ├── config.py        # Environment variables & Groq API configuration
-│   │   ├── database.py      # SQLite connection helpers & schema initializers
-│   │   ├── engine.py        # ReAct Agent loop, Groq LLM streaming, & tool dispatching
-│   │   ├── main.py          # ASGI application entrypoint & static mount
-│   │   └── tools.py         # PyMuPDF parser, regex extractor, and ledger handlers
-│   └── requirements.txt     # Lightweight, Render-optimized Python dependencies
+│   │   ├── api.py              # FastAPI REST and SSE routes
+│   │   ├── config.py           # Environment variables and Groq configuration
+│   │   ├── database.py         # SQLite connection and schema initialization
+│   │   ├── engine.py           # ReAct agent loop and tool dispatching
+│   │   ├── main.py             # ASGI application entry point
+│   │   └── tools.py            # PDF parsing, validation and ledger handlers
+│   └── requirements.txt        # Backend dependencies
 ├── frontend/
 │   ├── src/
-│   │   ├── WorkPilotChat.jsx # Enterprise Workbench UI component
-│   │   ├── index.css        # Enterprise dark-theme styles & animation keyframes
-│   │   ├── main.jsx         # React application mounting point
-│   │   └── App.jsx          # Top-level React wrapper
-│   ├── index.html           # HTML template
-│   ├── package.json         # Node dependencies (React, Vite)
-│   └── vite.config.js       # Vite development configuration
+│   │   ├── WorkPilotChat.jsx   # Main WorkPilot interface
+│   │   ├── index.css           # Application styles
+│   │   ├── main.jsx            # React entry point
+│   │   └── App.jsx             # Root React component
+│   ├── index.html
+│   ├── package.json
+│   └── vite.config.js
 ├── data/
-│   ├── invoices/            # Directory containing sample PDF invoices
-│   └── workpilot.db         # SQLite persistent transaction storage
-├── setup_workpilot_and_tests.py # Master setup script for README & PDF test creation
-├── render.yaml              # Unified single-service Render deployment blueprint
-└── README.md                # Project documentation
+│   ├── invoices/               # Invoice PDF storage
+│   └── workpilot.db            # SQLite ledger database
+├── render.yaml                 # Render deployment configuration
+└── README.md
 ```
 
 ---
 
-## 🗄️ Database Schema (`data/workpilot.db`)
+## 🗄️ Database Schema
 
-WorkPilot stores transaction data in an SQLite table named `invoices`:
+WorkPilot stores invoice transactions in an SQLite table named `invoices`.
 
 ```sql
 CREATE TABLE IF NOT EXISTS invoices (
@@ -148,109 +168,185 @@ CREATE TABLE IF NOT EXISTS invoices (
 );
 ```
 
+The invoice number is unique, helping prevent duplicate ledger entries.
+
 ---
 
-## 🔌 API Endpoints Specification
+## 🔌 API Endpoints
 
-### 1. Execute Task Stream (SSE)
-* **Endpoint:** `GET /api/v1/run-stream?prompt={query}`
-* **Response Type:** `text/event-stream`
-* **Event Types:**
-  * `AGENT_START`: Agent initialization event.
-  * `TOOL_CALL`: Executing a specific tool with parsed JSON arguments.
-  * `OBSERVATION`: Output result returned by a tool execution.
-  * `APPROVAL_REQUIRED`: Triggered when an invoice amount is $\ge \$10,000$.
-  * `FINAL_ANSWER`: Workflow completion message containing text and `---ACTION_BUTTONS---`.
+### 1. Execute Task Stream
+
+**Endpoint:** `GET /api/v1/run-stream?prompt={query}`
+
+**Response type:** `text/event-stream`
+
+This endpoint streams agent execution events to the frontend.
+
+Supported event types:
+
+- `AGENT_START` — Agent initialization.
+- `TOOL_CALL` — A tool is being invoked.
+- `OBSERVATION` — The result returned by a tool.
+- `APPROVAL_REQUIRED` — Human approval is required.
+- `FINAL_ANSWER` — Workflow completion or final response.
 
 ### 2. Fetch Ledger Transactions
-* **Endpoint:** `GET /api/v1/transactions`
-* **Response:** Array of recorded invoice objects sorted by newest first (`ORDER BY id DESC`).
 
-### 3. Fetch Single Transaction Detail
-* **Endpoint:** `GET /api/v1/transactions/{tx_id}`
-* **Response:** Detailed JSON payload for direct redirect view.
+**Endpoint:** `GET /api/v1/transactions`
 
-### 4. Human Safety Gate Decision
-* **Endpoint:** `POST /api/v1/approve`
-* **Request Body:**
-  ```json
-  {
-    "invoice_number": "INV-10992",
-    "vendor_name": "Acme Supplies",
-    "amount": 12500.00,
-    "due_date": "2026-11-15",
-    "file_location": "data/invoices/acme_10992.pdf",
-    "approved": true
-  }
-  ```
-* **Response:** `{"status": "approved", "recorded_db_id": 42}`
+Returns invoice transactions sorted by newest first.
 
----
+### 3. Fetch Transaction Details
 
-## 🧪 Test Case PDF Generation
+**Endpoint:** `GET /api/v1/transactions/{tx_id}`
 
-To run and verify all agent scenarios (Standard Processing, Missing Fields, and Safety Gate), generate test PDF files locally using `pymupdf`:
+Returns the details of a specific invoice transaction.
 
-### Generated Test Files Overview
+### 4. Human Approval Endpoint
 
-| File Path | Vendor Name | Invoice Number | Amount | Test Scenario |
-| :--- | :--- | :--- | :--- | :--- |
-| `data/invoices/abc_corp_invoice.pdf` | ABC Corp | `INV-2026-001` | `$1,250.00` | **Standard Flow**: Clean extraction, pre-commit prompt, ledger persistence. |
-| `data/invoices/tech_global_invoice.pdf` | Tech Global | `INV-2026-002` | `$3,400.00` | **Missing Field Flow**: Missing due date triggers verification warning. |
-| `data/invoices/acme_supplies_invoice.pdf` | Acme Supplies | `INV-2026-003` | `$12,500.00` | **Safety Threshold Flow**: Exceeds $10,000, triggering Human Safety Gate. |
+**Endpoint:** `POST /api/v1/approve`
+
+Example request body:
+
+```json
+{
+  "invoice_number": "INV-10992",
+  "vendor_name": "Acme Supplies",
+  "amount": 12500.00,
+  "due_date": "2026-11-15",
+  "file_location": "data/invoices/acme_10992.pdf",
+  "approved": true
+}
+```
+
+Example response:
+
+```json
+{
+  "status": "approved",
+  "recorded_db_id": 42
+}
+```
+
+The actual transaction ID will depend on the database.
 
 ---
 
 ## 🚀 Local Development Setup
 
 ### Prerequisites
-* **Python**: `3.10+`
-* **Node.js**: `v18+`
-* **Groq API Key**: Obtainable from [console.groq.com](https://console.groq.com)
 
-### 1. Environment Configuration
-Create a `.env` file inside `backend/`:
+- Python 3.10 or newer
+- Node.js 18 or newer
+- A Groq API key
+
+### 1. Clone the Repository
+
+```bash
+git clone <your-github-repository-url>
+cd workpilot
+```
+
+Replace the placeholder with your actual GitHub repository URL.
+
+### 2. Configure Environment Variables
+
+Create a `.env` file inside the `backend/` directory.
 
 ```env
 GROQ_API_KEY=your_groq_api_key_here
 ```
 
-### 2. Run Test Suite & Generate Test PDFs
-Run the master setup script to synthesize sample invoice PDF test files:
-```bash
-python setup_workpilot_and_tests.py
-```
+Obtain an API key from [Groq Console](https://console.groq.com/).
 
-### 3. Start Backend Server
-```bash
+Do not commit your `.env` file or expose your API key in the repository.
+
+### 3. Install Backend Dependencies
+
+From the project root:
+
+```powershell
 cd backend
 python -m venv venv
-# On Windows: venv\Scripts\activate | On macOS/Linux: source venv/bin/activate
+```
+
+Activate the virtual environment on Windows:
+
+```powershell
+venv\Scripts\activate
+```
+
+Install the dependencies:
+
+```powershell
 pip install -r requirements.txt
+```
+
+### 4. Start the Backend Server
+
+```powershell
 uvicorn app.main:app --reload --port 8000
 ```
-*Verify backend API docs at `http://localhost:8000/docs`.*
 
-### 4. Start Frontend Dev Server
-In a separate terminal window:
-```bash
+Open the API documentation:
+
+[http://localhost:8000/docs](http://localhost:8000/docs)
+
+### 5. Start the Frontend
+
+Open a separate terminal at the project root:
+
+```powershell
 cd frontend
 npm install
 npm run dev
 ```
-*Open `http://localhost:5173` in your browser.*
+
+Open the frontend at:
+
+[http://localhost:5173](http://localhost:5173)
 
 ---
 
-## ☁️ Production Deployment (Render Free Tier)
+## ☁️ Production Deployment on Render
 
-WorkPilot is pre-configured with a unified single-service `render.yaml` blueprint. Under this configuration, FastAPI serves the pre-built React static assets directly from `frontend/dist`, ensuring zero CORS overhead and minimizing free-tier resource consumption.
+WorkPilot is intended to use a unified Render web service in which FastAPI serves the built React frontend from `frontend/dist`.
 
-### Deploying via Render Blueprints
+### Deployment Steps
 
-1. Commit and push code to GitHub.
-2. Log into **[Render Dashboard](https://dashboard.render.com)**.
-3. Click **New +** $\rightarrow$ **Blueprint**.
-4. Connect your GitHub repository.
-5. Set `GROQ_API_KEY` under environment variables.
-6. Click **Apply**.
+1. Commit and push the project to GitHub.
+2. Sign in to the [Render Dashboard](https://dashboard.render.com/).
+3. Select **New + → Blueprint**.
+4. Connect the GitHub repository containing `render.yaml`.
+5. Configure `GROQ_API_KEY` in the service's environment settings.
+6. Review the build and start commands in `render.yaml`.
+7. Click **Apply** to deploy.
+8. Open the generated Render URL and verify the frontend and API endpoints.
+
+### Deployment Considerations
+
+- Ensure the frontend is built before FastAPI attempts to serve `frontend/dist`.
+- Ensure the backend start command uses the correct application module.
+- Configure environment variables through Render rather than committing secrets.
+- Verify the invoice directory and SQLite database paths.
+- Render's default filesystem may be ephemeral. Use persistent storage or an appropriate external database if ledger data must survive restarts and redeployments.
+- Test invoice extraction, duplicate detection, approval handling and ledger persistence before processing real financial records.
+
+
+
+## 🔒 Security Considerations
+
+- Keep API keys in environment variables.
+- Require human approval for high-value invoices.
+- Validate invoice fields before recording.
+- Check for duplicate invoices before inserting transactions.
+- Verify ledger persistence after a write.
+- Protect approval and ledger endpoints from unauthorized access before exposing the application publicly.
+
+---
+
+## 📌 Project Summary
+
+WorkPilot combines an LLM-powered agent loop, PDF invoice extraction, multi-tier validation, duplicate detection, human approval, and a SQLite ledger in a full-stack financial workflow application.
+
+The goal is to reduce repetitive invoice-processing work while retaining verification and human oversight for sensitive financial operations.
