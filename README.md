@@ -312,16 +312,7 @@ Open the frontend at:
 
 WorkPilot is intended to use a unified Render web service in which FastAPI serves the built React frontend from `frontend/dist`.
 
-### Deployment Steps
 
-1. Commit and push the project to GitHub.
-2. Sign in to the [Render Dashboard](https://dashboard.render.com/).
-3. Select **New + → Blueprint**.
-4. Connect the GitHub repository containing `render.yaml`.
-5. Configure `GROQ_API_KEY` in the service's environment settings.
-6. Review the build and start commands in `render.yaml`.
-7. Click **Apply** to deploy.
-8. Open the generated Render URL and verify the frontend and API endpoints.
 
 ### Deployment Considerations
 
