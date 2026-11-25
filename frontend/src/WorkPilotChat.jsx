@@ -23,10 +23,7 @@ export default function WorkPilotChat() {
   const fetchTransactions = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/v1/transactions`);
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(data);
-      }
+      if (res.ok) setTransactions(await res.json());
     } catch (err) {
       console.error('Failed to fetch transaction history:', err);
     }
@@ -37,15 +34,12 @@ export default function WorkPilotChat() {
     if (!window.confirm(`Delete transaction #${txId}?`)) return;
     setDeletingTxId(txId);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/transactions/${txId}`, {
-        method: 'DELETE'
-      });
+      const res = await fetch(`${API_BASE_URL}/api/v1/transactions/${txId}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || 'Failed to delete transaction');
       setTransactions((prev) => prev.filter((tx) => tx.id !== txId));
       if (selectedTx?.id === txId) setSelectedTx(null);
     } catch (err) {
-      console.error('Delete transaction error:', err);
       alert(`Error: ${err.message}`);
     } finally {
       setDeletingTxId(null);
@@ -67,10 +61,7 @@ export default function WorkPilotChat() {
   const handleRedirectToTransaction = async (txId) => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/v1/transactions/${txId}`);
-      if (res.ok) {
-        const txData = await res.json();
-        setSelectedTx(txData);
-      }
+      if (res.ok) setSelectedTx(await res.json());
     } catch (err) {
       console.error(`Failed to load transaction #${txId}:`, err);
     }
@@ -78,15 +69,12 @@ export default function WorkPilotChat() {
 
   const parseMessageContent = (rawText) => {
     if (!rawText) return { bodyText: '', actionButtons: [] };
-
     if (rawText.includes('---ACTION_BUTTONS---')) {
-      const parts = rawText.split('---ACTION_BUTTONS---');
-      const bodyText = parts[0].trim();
+      const [bodyPart, btnPart] = rawText.split('---ACTION_BUTTONS---');
       try {
-        const actionButtons = JSON.parse(parts[1].trim());
-        return { bodyText, actionButtons };
-      } catch (e) {
-        return { bodyText, actionButtons: [] };
+        return { bodyText: bodyPart.trim(), actionButtons: JSON.parse(btnPart.trim()) };
+      } catch {
+        return { bodyText: bodyPart.trim(), actionButtons: [] };
       }
     }
     return { bodyText: rawText, actionButtons: [] };
@@ -99,8 +87,7 @@ export default function WorkPilotChat() {
 
     const matchTxCmd = query.match(/ID\s*(\d+)/i) || query.match(/#(\d+)/);
     if (query.toLowerCase().includes('transaction') && matchTxCmd) {
-      const txId = parseInt(matchTxCmd[1], 10);
-      handleRedirectToTransaction(txId);
+      handleRedirectToTransaction(parseInt(matchTxCmd[1], 10));
       setPrompt('');
       return;
     }
@@ -109,18 +96,11 @@ export default function WorkPilotChat() {
     setLoading(true);
 
     const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    const userMessage = { role: 'user', text: query, time: timeString };
-    const initialAgentMessage = {
-      role: 'assistant',
-      text: '',
-      steps: [],
-      approvalNeeded: null,
-      status: 'thinking',
-      time: timeString
-    };
-
-    setMessages((prev) => [...prev, userMessage, initialAgentMessage]);
+    setMessages((prev) => [
+      ...prev,
+      { role: 'user', text: query, time: timeString },
+      { role: 'assistant', text: '', steps: [], approvalNeeded: null, status: 'thinking', time: timeString }
+    ]);
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/v1/run-stream?prompt=${encodeURIComponent(query)}`);
@@ -133,46 +113,37 @@ export default function WorkPilotChat() {
         const { value, done } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
+        for (const line of decoder.decode(value).split('\n')) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            setMessages((prev) => {
+              const updated = [...prev];
+              const currentMsg = { ...updated[updated.length - 1] };
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.replace('data: ', ''));
-
-              setMessages((prev) => {
-                const updated = [...prev];
-                const currentMsg = { ...updated[updated.length - 1] };
-
-                if (data.event_type === 'APPROVAL_REQUIRED') {
-                  currentMsg.approvalNeeded = data.payload;
-                  currentMsg.status = 'awaiting_approval';
-                } else if (data.event_type === 'FINAL_ANSWER') {
-                  currentMsg.text = data.message;
-                  currentMsg.status = 'complete';
-                  fetchTransactions();
-                } else {
-                  currentMsg.status = 'executing';
-                  currentMsg.steps = [
-                    ...currentMsg.steps,
-                    {
-                      type: data.event_type,
-                      title: data.title || data.event_type,
-                      payload: data.payload
-                    }
-                  ];
-                }
-                updated[updated.length - 1] = currentMsg;
-                return updated;
-              });
-            } catch (e) {
-              console.error('SSE JSON parse error:', e);
-            }
+              if (data.event_type === 'APPROVAL_REQUIRED') {
+                currentMsg.approvalNeeded = data.payload;
+                currentMsg.status = 'awaiting_approval';
+              } else if (data.event_type === 'FINAL_ANSWER') {
+                currentMsg.text = data.message;
+                currentMsg.status = 'complete';
+                fetchTransactions();
+              } else {
+                currentMsg.status = 'executing';
+                currentMsg.steps = [
+                  ...currentMsg.steps,
+                  { type: data.event_type, title: data.title || data.event_type, payload: data.payload }
+                ];
+              }
+              updated[updated.length - 1] = currentMsg;
+              return updated;
+            });
+          } catch (e) {
+            console.error('SSE JSON parse error:', e);
           }
         }
       }
-    } catch (err) {
+    } catch {
       setMessages((prev) => {
         const updated = [...prev];
         updated[updated.length - 1] = {
@@ -200,7 +171,7 @@ export default function WorkPilotChat() {
           due_date: payload.due_date,
           email_date: payload.email_date,
           file_location: payload.file_location,
-          approved: approved
+          approved
         })
       });
 
@@ -225,16 +196,12 @@ export default function WorkPilotChat() {
     <div className="app-layout">
       {/* Transaction History Sidebar */}
       <aside className={`sidebar ${!sidebarOpen ? 'closed' : ''}`}>
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="sidebar-toggle-btn">
+        <div className="sidebar-inner">
+          <div className="sidebar-top">
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="sidebar-toggle-btn" title="Toggle Sidebar">
               ☰
             </button>
-            {sidebarOpen && (
-              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#8e918f' }}>
-                TRANSACTION HISTORY
-              </span>
-            )}
+            {sidebarOpen && <span className="sidebar-label">TRANSACTION HISTORY</span>}
           </div>
 
           {sidebarOpen && (
@@ -242,58 +209,37 @@ export default function WorkPilotChat() {
               <button
                 onClick={() => { setSelectedTx(null); setMessages([]); }}
                 className="new-thread-btn"
-                style={{ marginBottom: '16px' }}
               >
                 + New Task Execution
               </button>
 
-              <div
-                className="transaction-history-list"
-                style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}
-              >
+              <div className="transaction-history-list">
                 {transactions.length === 0 ? (
-                  <div style={{ fontSize: '0.75rem', color: '#8e918f', textAlign: 'center', marginTop: '20px' }}>
-                    No recorded transactions in ledger
-                  </div>
+                  <div className="empty-ledger">No recorded transactions in ledger</div>
                 ) : (
                   transactions.map((tx) => (
                     <div
                       key={tx.id}
                       onClick={() => handleRedirectToTransaction(tx.id)}
                       className={`tx-history-item ${selectedTx?.id === tx.id ? 'active' : ''}`}
-                      style={{
-                        padding: '10px 12px',
-                        borderRadius: '10px',
-                        backgroundColor: selectedTx?.id === tx.id ? '#282a2c' : '#131314',
-                        border: '1px solid #282a2c',
-                        cursor: 'pointer',
-                        fontSize: '0.78rem'
-                      }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', fontWeight: 600, color: '#e3e3e3' }}>
+                      <div className="tx-item-top">
                         <span>Tx #{tx.id} • {tx.vendor_name}</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ color: '#10b981' }}>${tx.amount?.toLocaleString()}</span>
+                        <div className="tx-item-actions">
+                          <span className="tx-amount">${tx.amount?.toLocaleString()}</span>
                           <button
                             type="button"
                             title={`Delete transaction #${tx.id}`}
                             aria-label={`Delete transaction #${tx.id}`}
                             disabled={deletingTxId === tx.id}
                             onClick={(e) => handleDeleteTransaction(e, tx.id)}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              color: '#ff7777',
-                              cursor: 'pointer',
-                              padding: '3px 5px',
-                              fontSize: '15px'
-                            }}
+                            className="tx-delete-btn"
                           >
                             {deletingTxId === tx.id ? '…' : '🗑'}
                           </button>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#8e918f', fontSize: '0.7rem', marginTop: '4px' }}>
+                      <div className="tx-item-bottom">
                         <span>Invoice: {tx.invoice_number}</span>
                         <span>{tx.status || 'RECORDED'}</span>
                       </div>
@@ -309,46 +255,43 @@ export default function WorkPilotChat() {
       {/* Main Workspace */}
       <main className="main-content">
         <header className="top-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ color: '#4285f4', fontSize: '1.2rem' }}>✦</span>
-            <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>WorkPilot Ledger Workspace</span>
+          <div className="brand-title">
+            <span className="wp-badge">WP</span>
+            <span>WorkPilot Ledger Workspace</span>
           </div>
           <span className="brand-badge">sqlite3 // data/workpilot.db</span>
         </header>
 
-        {/* Focused Single Transaction Redirection View */}
+        {/* Focused Single Transaction View */}
         {selectedTx ? (
-          <div className="chat-feed" style={{ padding: '24px', maxWidth: '820px', margin: '0 auto', width: '100%' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 style={{ color: '#4285f4', fontSize: '1.2rem' }}>📊 Transaction Record #{selectedTx.id}</h2>
-              <button
-                onClick={() => setSelectedTx(null)}
-                style={{ background: '#1e1f20', border: '1px solid #282a2c', color: '#e3e3e3', padding: '6px 12px', borderRadius: '12px', cursor: 'pointer', fontSize: '0.8rem' }}
-              >
+          <div className="chat-feed">
+            <div className="tx-detail-header">
+              <h2>Transaction Record #{selectedTx.id}</h2>
+              <button onClick={() => setSelectedTx(null)} className="back-btn">
                 ← Return to Live Task Execution
               </button>
             </div>
 
-            <div style={{ backgroundColor: '#1e1f20', border: '1px solid #282a2c', borderRadius: '16px', padding: '20px', lineHeight: '1.8' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '0.88rem' }}>
+            <div className="tx-detail-card">
+              <div className="tx-detail-grid">
                 <div><strong>Transaction ID:</strong> #{selectedTx.id}</div>
-                <div><strong>Status:</strong> <span style={{ color: '#10b981' }}>{selectedTx.status}</span></div>
+                <div><strong>Status:</strong> <span className="tx-amount">{selectedTx.status}</span></div>
                 <div><strong>Invoice Number:</strong> {selectedTx.invoice_number}</div>
                 <div><strong>Vendor Name:</strong> {selectedTx.vendor_name}</div>
                 <div><strong>Amount:</strong> ${selectedTx.amount?.toLocaleString()}</div>
                 <div><strong>Due Date:</strong> {selectedTx.due_date}</div>
-                <div style={{ gridColumn: 'span 2' }}><strong>Source PDF Location:</strong> <code style={{ color: '#fcd34d' }}>{selectedTx.file_location}</code></div>
-                <div style={{ gridColumn: 'span 2' }}><strong>Recorded Timestamp:</strong> {selectedTx.created_at}</div>
+                <div className="span-2"><strong>Source PDF Location:</strong> <code className="code-path">{selectedTx.file_location}</code></div>
+                <div className="span-2"><strong>Recorded Timestamp:</strong> {selectedTx.created_at}</div>
               </div>
 
-              <div className="action-buttons-wrapper" style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #282a2c' }}>
-                <div className="action-buttons-label">✦ Transaction Actions:</div>
+              <div className="action-buttons-wrapper">
+                <div className="action-buttons-label">› Transaction Actions:</div>
                 <div className="action-buttons-grid">
                   <button className="decision-tree-btn" onClick={() => handleSendPrompt('Scan inbox for next invoice')}>
-                    Scan Next Inbox Invoice →
+                    Scan Next Inbox Invoice <span className="btn-arrow">→</span>
                   </button>
                   <button className="decision-tree-btn" onClick={() => setSelectedTx(null)}>
-                    Close Transaction View →
+                    Close Transaction View <span className="btn-arrow">→</span>
                   </button>
                 </div>
               </div>
@@ -360,14 +303,10 @@ export default function WorkPilotChat() {
             {messages.length === 0 ? (
               <div className="welcome-container">
                 <div>
-                  <h1 className="gemini-title">Hello, Financial Lead</h1>
-                  <p style={{ color: '#8e918f', marginTop: '6px', fontSize: '0.9rem' }}>
-                    How can WorkPilot assist with your transaction ledger processing today?
+                  <h1 className="workspace-title">WorkPilot Ledger Agent</h1>
+                  <p className="workspace-subtitle">
+                    Automate invoice extraction, duplicate verification, and ledger commits.
                   </p>
-                </div>
-
-                <div className="info-banner">
-                  <strong>Transaction Redirection Enabled:</strong> If an invoice is already in the ledger, WorkPilot returns a redirect button linking directly to its Transaction ID.
                 </div>
 
                 <div className="prompt-grid">
@@ -384,12 +323,12 @@ export default function WorkPilotChat() {
                 const { bodyText, actionButtons } = parseMessageContent(msg.text);
                 return (
                   <div key={idx} className={`message-row ${msg.role}`}>
-                    {msg.role === 'assistant' && <div className="avatar">✦</div>}
+                    {msg.role === 'assistant' && <div className="avatar">WP</div>}
 
                     <div className="message-body">
                       <div className="message-bubble">
                         {/* Thought Chain Accordion */}
-                        {msg.steps && msg.steps.length > 0 && (
+                        {msg.steps?.length > 0 && (
                           <div className="thought-chain">
                             <button className="thought-header" onClick={() => toggleThoughtChain(idx)}>
                               <span>⚙️ Thought Chain ({msg.steps.length} actions)</span>
@@ -398,10 +337,10 @@ export default function WorkPilotChat() {
                             {showThoughtChain[idx] && (
                               <div className="thought-content">
                                 {msg.steps.map((s, sIdx) => (
-                                  <div key={sIdx} style={{ marginBottom: '8px', borderBottom: '1px solid #282a2c', paddingBottom: '6px' }}>
+                                  <div key={sIdx} className="thought-step">
                                     › <strong>{s.title}</strong>
                                     {s.payload && (
-                                      <pre style={{ fontSize: '0.7rem', color: '#8e918f', marginTop: '4px', overflowX: 'auto' }}>
+                                      <pre className="thought-payload">
                                         {JSON.stringify(s.payload, null, 2)}
                                       </pre>
                                     )}
@@ -415,11 +354,11 @@ export default function WorkPilotChat() {
                         {/* Human Safety Approval Required Card */}
                         {msg.approvalNeeded && (
                           <div className="approval-card">
-                            <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>⚠️ Human Safety Approval Required</div>
-                            <p style={{ marginTop: '6px', lineHeight: '1.4' }}>
+                            <div className="approval-title">⚠️ Human Safety Approval Required</div>
+                            <p className="approval-desc">
                               Invoice <strong>#{msg.approvalNeeded.invoice_number}</strong> from <strong>{msg.approvalNeeded.vendor_name}</strong> totals <strong>${msg.approvalNeeded.amount?.toLocaleString()}</strong> (Exceeds $10,000 Safety Threshold).
                             </p>
-                            <div style={{ marginTop: '6px', fontSize: '0.75rem', color: '#fcd34d' }}>
+                            <div className="approval-meta">
                               <div>📁 <strong>Source Attachment:</strong> {msg.approvalNeeded.file_location}</div>
                               <div>🗄️ <strong>Target Ledger:</strong> {msg.approvalNeeded.target_db_location}</div>
                             </div>
@@ -441,7 +380,7 @@ export default function WorkPilotChat() {
 
                             {actionButtons.length > 0 && (
                               <div className="action-buttons-wrapper">
-                                <div className="action-buttons-label">✦ Select Next Action:</div>
+                                <div className="action-buttons-label">› Select Next Action:</div>
                                 <div className="action-buttons-grid">
                                   {actionButtons.map((btn, bIdx) => (
                                     <button
@@ -479,7 +418,7 @@ export default function WorkPilotChat() {
               handleSendPrompt();
             }}
           >
-            <span style={{ color: '#4285f4' }}>✦</span>
+            <span className="terminal-prompt">&gt;_</span>
             <input
               type="text"
               className="input-field"

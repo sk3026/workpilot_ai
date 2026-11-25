@@ -8,26 +8,9 @@
 body {
   background-color: #131314;
   color: #e3e3e3;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   height: 100vh;
   overflow: hidden;
-}
-
-.gemini-title {
-  font-size: 2.25rem;
-  font-weight: 600;
-  letter-spacing: -0.025em;
-  background: linear-gradient(135deg, #4285f4 0%, #9b72cb 25%, #d96570 50%, #4285f4 100%);
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: shimmer 6s ease infinite;
-}
-
-@keyframes shimmer {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
 }
 
 .app-layout {
@@ -39,19 +22,36 @@ body {
 
 /* Sidebar */
 .sidebar {
-  width: 260px;
+  width: 265px;
   background-color: #1e1f20;
   border-right: 1px solid #282a2c;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
   padding: 16px;
-  transition: width 0.3s ease;
+  transition: width 0.25s ease;
 }
 
 .sidebar.closed {
   width: 60px;
   padding: 16px 8px;
+}
+
+.sidebar-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.sidebar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.sidebar-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #8e918f;
+  letter-spacing: 0.04em;
 }
 
 .sidebar-toggle-btn {
@@ -60,12 +60,12 @@ body {
   color: #c4c7c5;
   cursor: pointer;
   font-size: 1.2rem;
-  margin-bottom: 16px;
 }
 
 .new-thread-btn {
   width: 100%;
   padding: 10px 16px;
+  margin-bottom: 16px;
   border-radius: 20px;
   background-color: #131314;
   color: #e3e3e3;
@@ -73,6 +73,78 @@ body {
   cursor: pointer;
   font-size: 0.8rem;
   font-weight: 600;
+  transition: border-color 0.2s ease;
+}
+
+.new-thread-btn:hover {
+  border-color: #4285f4;
+}
+
+.transaction-history-list {
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.empty-ledger {
+  font-size: 0.75rem;
+  color: #8e918f;
+  text-align: center;
+  margin-top: 20px;
+}
+
+.tx-history-item {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background-color: #131314;
+  border: 1px solid #282a2c;
+  cursor: pointer;
+  font-size: 0.78rem;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.tx-history-item:hover,
+.tx-history-item.active {
+  background-color: #282a2c;
+  border-color: #3c3f42;
+}
+
+.tx-item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #e3e3e3;
+}
+
+.tx-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tx-amount {
+  color: #10b981;
+}
+
+.tx-delete-btn {
+  background: transparent;
+  border: none;
+  color: #ff7777;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 14px;
+}
+
+.tx-item-bottom {
+  display: flex;
+  justify-content: space-between;
+  color: #8e918f;
+  font-size: 0.7rem;
+  margin-top: 4px;
 }
 
 /* Main Workspace */
@@ -96,6 +168,28 @@ body {
   z-index: 10;
 }
 
+.brand-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.wp-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background-color: #4285f4;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.7rem;
+  font-family: monospace;
+}
+
 .brand-badge {
   font-size: 0.7rem;
   font-family: monospace;
@@ -106,7 +200,7 @@ body {
   border: 1px solid #282a2c;
 }
 
-/* Chat Feed */
+/* Chat Feed & Welcome */
 .chat-feed {
   flex: 1;
   overflow-y: auto;
@@ -123,16 +217,20 @@ body {
   margin: auto 0;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 
-.info-banner {
-  background-color: #1e1f20;
-  border: 1px solid #282a2c;
-  border-radius: 16px;
-  padding: 16px;
-  font-size: 0.8rem;
-  color: #c4c7c5;
+.workspace-title {
+  font-size: 2.1rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #f3f4f6;
+}
+
+.workspace-subtitle {
+  color: #8e918f;
+  margin-top: 6px;
+  font-size: 0.92rem;
 }
 
 .prompt-grid {
@@ -169,6 +267,51 @@ body {
   color: #8e918f;
 }
 
+/* Transaction Detail View */
+.tx-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tx-detail-header h2 {
+  color: #4285f4;
+  font-size: 1.2rem;
+}
+
+.back-btn {
+  background: #1e1f20;
+  border: 1px solid #282a2c;
+  color: #e3e3e3;
+  padding: 6px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.tx-detail-card {
+  background-color: #1e1f20;
+  border: 1px solid #282a2c;
+  border-radius: 16px;
+  padding: 20px;
+  line-height: 1.8;
+}
+
+.tx-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  font-size: 0.88rem;
+}
+
+.span-2 {
+  grid-column: span 2;
+}
+
+.code-path {
+  color: #fcd34d;
+}
+
 /* Message Rows */
 .message-row {
   display: flex;
@@ -183,13 +326,14 @@ body {
 .avatar {
   width: 32px;
   height: 32px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #4285f4, #9b72cb);
+  border-radius: 8px;
+  background-color: #4285f4;
+  font-family: monospace;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
-  font-size: 0.8rem;
+  font-weight: 700;
+  font-size: 0.72rem;
   color: white;
   flex-shrink: 0;
 }
@@ -253,6 +397,19 @@ body {
   color: #c4c7c5;
 }
 
+.thought-step {
+  margin-bottom: 8px;
+  border-bottom: 1px solid #282a2c;
+  padding-bottom: 6px;
+}
+
+.thought-payload {
+  font-size: 0.7rem;
+  color: #8e918f;
+  margin-top: 4px;
+  overflow-x: auto;
+}
+
 /* Safety Card */
 .approval-card {
   background-color: rgba(245, 158, 11, 0.08);
@@ -262,6 +419,22 @@ body {
   margin: 10px 0;
   color: #fef3c7;
   font-size: 0.82rem;
+}
+
+.approval-title {
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.approval-desc {
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
+.approval-meta {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: #fcd34d;
 }
 
 .approval-buttons {
@@ -307,6 +480,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid #282a2c;
 }
@@ -381,6 +555,12 @@ body {
 
 .input-pill:focus-within {
   border-color: #4285f4;
+}
+
+.terminal-prompt {
+  color: #4285f4;
+  font-family: monospace;
+  font-weight: 700;
 }
 
 .input-field {
