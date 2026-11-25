@@ -1,3 +1,62 @@
+# # Secrets & Environment Variables
+# .env
+# .env.*
+# !.env.example
+# backend/.env
+# frontend/.env
+# frontend/.env.*
+# !frontend/.env.example
+
+# # Python Virtual Environments
+# venv/
+# backend/venv/
+# .venv/
+# __pycache__/
+# *.py[cod]
+# *.pyo
+# .pytest_cache/
+# .mypy_cache/
+# .ruff_cache/
+# .coverage
+# htmlcov/
+
+# # Node / Frontend
+# node_modules/
+# frontend/node_modules/
+# frontend/dist/
+# npm-debug.log*
+# yarn-debug.log*
+# pnpm-debug.log*
+
+# # Databases & Generated Files
+# *.db
+# *.sqlite
+# *.sqlite3
+# !data/workpilot.db
+
+# # Keep Mock Inbox PDFs for deployment
+# !data/mock_inbox/*.pdf
+# !data/mock_inbox/.gitkeep
+
+# # Logs
+# *.log
+# logs/
+
+# # OS / IDE
+# .DS_Store
+# Thumbs.db
+# .vscode/
+# .idea/
+
+# # Build & Temporary Files
+# build/
+# dist/
+# tmp/
+# temp/
+# *.tmp
+# *.bak
+
+
 # Secrets & Environment Variables
 .env
 .env.*
@@ -32,11 +91,10 @@ pnpm-debug.log*
 *.db
 *.sqlite
 *.sqlite3
-data/workpilot.db
+!data/workpilot.db
 
-# Mock Inbox PDFs
-data/mock_inbox/*.pdf
-!data/mock_inbox/invoice_abc_corp_001.pdf
+# Keep Mock Inbox PDFs for deployment
+!data/mock_inbox/*.pdf
 !data/mock_inbox/.gitkeep
 
 # Logs
