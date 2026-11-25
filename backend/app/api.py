@@ -22,11 +22,15 @@ class ApprovalRequest(BaseModel):
     approved: bool
 
 
+# ==========================================
+# 1. RUN WORKPILOT AGENT (SSE STREAM)
+# ==========================================
+
 @router.get("/run-stream")
 async def run_stream(prompt: str):
+
     async def event_generator():
         try:
-            # Notify frontend that the agent has started.
             yield (
                 f"data: {json.dumps({
                     'event_type': 'AGENT_START',
@@ -34,7 +38,6 @@ async def run_stream(prompt: str):
                 })}\n\n"
             )
 
-            # run_workpilot_stream is an asynchronous generator.
             async for event in run_workpilot_stream(prompt):
                 yield f"data: {json.dumps(event, default=str)}\n\n"
 
@@ -55,16 +58,20 @@ async def run_stream(prompt: str):
     )
 
 
+# ==========================================
+# 2. GET ALL TRANSACTIONS
+# ==========================================
+
 @router.get("/transactions")
 async def get_transactions():
+
     conn = None
 
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute(
-            """
+        cursor.execute("""
             SELECT
                 id,
                 invoice_number,
@@ -75,8 +82,7 @@ async def get_transactions():
                 created_at
             FROM invoices
             ORDER BY id DESC
-            """
-        )
+        """)
 
         rows = cursor.fetchall()
 
@@ -88,7 +94,7 @@ async def get_transactions():
                 "amount": row[3],
                 "due_date": row[4],
                 "status": row[5],
-                "created_at": row[6],
+                "created_at": row[6]
             }
             for row in rows
         ]
@@ -104,16 +110,20 @@ async def get_transactions():
             conn.close()
 
 
+# ==========================================
+# 3. GET SINGLE TRANSACTION
+# ==========================================
+
 @router.get("/transactions/{tx_id}")
 async def get_transaction_detail(tx_id: int):
+
     conn = None
 
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute(
-            """
+        cursor.execute("""
             SELECT
                 id,
                 invoice_number,
@@ -125,9 +135,7 @@ async def get_transaction_detail(tx_id: int):
                 created_at
             FROM invoices
             WHERE id = ?
-            """,
-            (tx_id,)
-        )
+        """, (tx_id,))
 
         row = cursor.fetchone()
 
@@ -145,7 +153,7 @@ async def get_transaction_detail(tx_id: int):
             "due_date": row[4],
             "status": row[5],
             "file_location": row[6],
-            "created_at": row[7],
+            "created_at": row[7]
         }
 
     except HTTPException:
@@ -162,8 +170,100 @@ async def get_transaction_detail(tx_id: int):
             conn.close()
 
 
+# ==========================================
+# 4. CLEAR ALL TRANSACTIONS
+# ==========================================
+
+@router.delete("/transactions")
+async def clear_all_transactions():
+
+    conn = None
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("DELETE FROM invoices")
+
+        deleted_count = cursor.rowcount
+
+        conn.commit()
+
+        return {
+            "status": "success",
+            "message": "All transactions cleared successfully.",
+            "deleted_count": deleted_count
+        }
+
+    except Exception as e:
+        if conn is not None:
+            conn.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to clear database: {str(e)}"
+        )
+
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+# ==========================================
+# 5. DELETE INDIVIDUAL TRANSACTION
+# ==========================================
+
+@router.delete("/transactions/{tx_id}")
+async def delete_transaction(tx_id: int):
+
+    conn = None
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "DELETE FROM invoices WHERE id = ?",
+            (tx_id,)
+        )
+
+        if cursor.rowcount == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="Transaction not found"
+            )
+
+        conn.commit()
+
+        return {
+            "status": "success",
+            "message": f"Transaction #{tx_id} deleted successfully."
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        if conn is not None:
+            conn.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete transaction: {str(e)}"
+        )
+
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+# ==========================================
+# 6. HUMAN APPROVAL PROCESS
+# ==========================================
+
 @router.post("/approve")
 async def process_approval(payload: ApprovalRequest):
+
     conn = None
 
     try:
@@ -171,8 +271,8 @@ async def process_approval(payload: ApprovalRequest):
         cursor = conn.cursor()
 
         if payload.approved:
-            cursor.execute(
-                """
+
+            cursor.execute("""
                 INSERT INTO invoices (
                     invoice_number,
                     vendor_name,
@@ -182,17 +282,16 @@ async def process_approval(payload: ApprovalRequest):
                     status
                 )
                 VALUES (?, ?, ?, ?, ?, 'VERIFIED')
-                """,
-                (
-                    payload.invoice_number,
-                    payload.vendor_name,
-                    payload.amount,
-                    payload.due_date,
-                    payload.file_location
-                )
-            )
+            """, (
+                payload.invoice_number,
+                payload.vendor_name,
+                payload.amount,
+                payload.due_date,
+                payload.file_location
+            ))
 
             recorded_id = cursor.lastrowid
+
             conn.commit()
 
             return {
@@ -200,9 +299,12 @@ async def process_approval(payload: ApprovalRequest):
                 "recorded_db_id": recorded_id
             }
 
-        return {"status": "rejected"}
+        return {
+            "status": "rejected"
+        }
 
     except Exception as e:
+
         if conn is not None:
             conn.rollback()
 

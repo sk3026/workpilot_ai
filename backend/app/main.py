@@ -43,10 +43,8 @@ if ASSETS_DIR.is_dir():
 @app.get("/", include_in_schema=False)
 async def serve_frontend():
     index_file = FRONTEND_DIST / "index.html"
-
     if index_file.is_file():
         return FileResponse(index_file)
-
     return {
         "message": "WorkPilot API is running",
         "docs": "/docs",
@@ -54,11 +52,17 @@ async def serve_frontend():
     }
 
 
-@app.get("/favicon.ico", include_in_schema=False)
-async def favicon():
-    favicon_file = FRONTEND_DIST / "favicon.ico"
+@app.get("/{full_path:path}", include_in_schema=False)
+async def spa_fallback(full_path: str):
+    if full_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="API route not found")
 
-    if favicon_file.is_file():
-        return FileResponse(favicon_file)
+    requested_file = FRONTEND_DIST / full_path
+    if requested_file.is_file():
+        return FileResponse(requested_file)
 
-    raise HTTPException(status_code=404, detail="Favicon not found")
+    index_file = FRONTEND_DIST / "index.html"
+    if index_file.is_file():
+        return FileResponse(index_file)
+
+    raise HTTPException(status_code=404, detail="Not found")
